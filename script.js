@@ -194,29 +194,43 @@ window.addEventListener('resize', () => {
     globe.width(window.innerWidth - 300).height(window.innerHeight);
 });
 
-// "Do Not Press" button behavior: open a new tab and play attached audio at max volume
+// "Do Not Press" button behavior: open a new tab that plays the audio and shows an insult
 (function setupDoNotPress() {
     const btn = document.getElementById('do-not-press');
-    const audio = document.getElementById('prank-audio');
-    if (!btn || !audio) return;
+    if (!btn) return;
     btn.addEventListener('click', () => {
         try {
             const newTab = window.open('', '_blank');
             if (newTab) {
-                newTab.document.write('<!doctype html><html><head><title>why did u press it</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:Arial, sans-serif;"><h1>why did u press it</h1></body></html>');
+                const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>why did u press it</title>
+  <style>
+    html,body{height:100%;margin:0}
+    body{display:flex;align-items:center;justify-content:center;background:#000;color:#fff;font-family:Arial, sans-serif}
+    h1{font-size:6vw}
+    audio{display:none}
+  </style>
+</head>
+<body>
+  <h1>you moron</h1>
+  <audio id="prank" src="prank.mp3" autoplay></audio>
+  <script>
+    (function(){
+      const a = document.getElementById('prank');
+      if(a){ a.volume = 1.0; a.muted = false; a.play().catch(()=>{}); }
+      try { window.focus(); } catch(e) {}
+    })();
+  </script>
+</body>
+</html>`;
+                newTab.document.write(html);
                 newTab.document.close();
             }
         } catch (e) {
             console.warn('Could not open new tab', e);
-        }
-
-        try {
-            audio.volume = 1.0;
-            audio.muted = false;
-            audio.currentTime = 0;
-            audio.play().catch(err => console.warn('Audio play failed', err));
-        } catch (e) {
-            console.warn('Audio error', e);
         }
     });
 })();
