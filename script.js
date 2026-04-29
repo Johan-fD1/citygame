@@ -194,43 +194,83 @@ window.addEventListener('resize', () => {
     globe.width(window.innerWidth - 300).height(window.innerHeight);
 });
 
-// "Do Not Press" button behavior: open a new tab that plays the audio and shows an insult
+// "Do Not Press" button behavior: show an in-page full-screen prank screen and play the audio loudly
 (function setupDoNotPress() {
     const btn = document.getElementById('do-not-press');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
+    const overlay = document.getElementById('prank-screen');
+    const audio = document.getElementById('prank-audio');
+    if (!btn || !overlay || !audio) return;
+
+    let audioCtx = null;
+    let sourceNode = null;
+    let gainNode = null;
+
+    btn.addEventListener('click', async () => {
         try {
-            const newTab = window.open('', '_blank');
-            if (newTab) {
-                const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>why did u press it</title>
-  <style>
-    html,body{height:100%;margin:0}
-    body{display:flex;align-items:center;justify-content:center;background:#000;color:#fff;font-family:Arial, sans-serif}
-    h1{font-size:6vw}
-    audio{display:none}
-  </style>
-</head>
-<body>
-  <h1>you moron</h1>
-  <audio id="prank" src="prank.mp3" autoplay></audio>
-  <script>
-    (function(){
-      const a = document.getElementById('prank');
-      if(a){ a.volume = 1.0; a.muted = false; a.play().catch(()=>{}); }
-      try { window.focus(); } catch(e) {}
-    })();
-  </script>
-</body>
-</html>`;
-                newTab.document.write(html);
-                newTab.document.close();
+            overlay.style.display = 'flex';
+            overlay.classList.add('active');
+
+            // attempt to enter fullscreen for the overlay (user gesture)
+            try { if (overlay.requestFullscreen) overlay.requestFullscreen(); } catch (e) {}
+
+            audio.loop = true;
+            audio.muted = false;
+            audio.volume = 1.0;
+
+            // try to amplify using Web Audio API (gain > 1 to make it loud)
+            try {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                sourceNode = audioCtx.createMediaElementSource(audio);
+                gainNode = audioCtx.createGain();
+                gainNode.gain.value = 4.0; // amplify (may clip)
+                sourceNode.connect(gainNode).connect(audioCtx.destination);
+            } catch (e) {
+                console.warn('WebAudio amplification unavailable', e);
             }
-        } catch (e) {
-            console.warn('Could not open new tab', e);
+
+            await audio.play().catch(() => {});
+            // if audio failed to start or no source, fallback to a generated oscillator so it's loud
+            try {
+                const failedToPlay = !!audio.error || audio.paused;
+                if ((failedToPlay || !audio.currentSrc)) {
+                    if (!audioCtx) {
+                        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    try {
+                        // ensure a gain node exists
+                        if (!gainNode) {
+                            gainNode = audioCtx.createGain();
+                            gainNode.gain.value = 4.0;
+                            gainNode.connect(audioCtx.destination);
+                        }
+                        const osc = audioCtx.createOscillator();
+                        osc.type = 'sawtooth';
+                        osc.frequency.value = 240;
+                        osc.connect(gainNode);
+                        osc.start();
+                        // store so we can stop later
+                        overlay._prankOsc = osc;
+                    } catch (e) {
+                        console.warn('oscillator fallback failed', e);
+                    }
+                }
+            } catch (e) {
+                console.warn('fallback check failed', e);
+            }
+            try { window.focus(); } catch (e) {}
+        } catch (err) {
+            console.warn('Prank overlay error', err);
         }
+    });
+
+    // clicking the overlay stops the audio and hides the screen
+    overlay.addEventListener('click', async () => {
+        overlay.classList.remove('active');
+        overlay.style.display = 'none';
+        try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (e) {}
+        try { audio.pause(); audio.currentTime = 0; } catch (e) {}
+        try { if (overlay._prankOsc) { overlay._prankOsc.stop(); overlay._prankOsc.disconnect(); overlay._prankOsc = null; } } catch (e) {}
+        try { if (gainNode) gainNode.gain.value = 0; } catch (e) {}
+        try { if (audioCtx && typeof audioCtx.close === 'function') await audioCtx.close(); } catch (e) {}
     });
 })();
