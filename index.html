@@ -58,11 +58,43 @@
             <div id="cityInfo" style="display:none;">
                 <h3>Your City</h3>
                 <p id="cityDesc"></p>
-                <button onclick="simulateEvents()">Simulate Events</button>
+                <button onclick="showSimulationControls()">Plan Actions & Simulate</button>
             </div>
+            <div id="simulationControls" style="display:none;">
+                <h3>Simulation Controls</h3>
+                <p>Current Date: <span id="currentDate"></span></p>
+                <p>Population: <span id="currentPopulation"></span></p>
+                <p>Area (sq km): <span id="currentArea"></span></p>
+                <p>Happiness: <span id="currentHappiness"></span></p>
+                <p>Budget: $<span id="currentBudget"></span>M</p>
+
+                <label>Select actions (you can pick multiple):</label>
+                <div>
+                    <label><input type="checkbox" id="act_infra" value="invest_infrastructure"> Invest in infrastructure</label><br>
+                    <label><input type="checkbox" id="act_police" value="increase_policing"> Increase policing</label><br>
+                    <label><input type="checkbox" id="act_taxes" value="cut_taxes"> Cut taxes</label><br>
+                    <label><input type="checkbox" id="act_hospitals" value="build_hospitals"> Build hospitals</label><br>
+                    <label><input type="checkbox" id="act_conserve" value="conserve_budget"> Conserve budget</label><br>
+                    <label><input type="checkbox" id="act_nothing" value="do_nothing"> Do nothing</label><br>
+                </div>
+
+                <label for="simYears">Simulate years:</label>
+                <input type="number" id="simYears" min="1" value="1">
+                <button onclick="runSimulation()">Run Simulation</button>
+            </div>
+
             <div id="events" style="display:none;">
                 <h3>Historical Events</h3>
-                <p id="eventDesc"></p>
+                <pre id="eventDesc" style="white-space:pre-wrap"></pre>
+            </div>
+            <div id="majorCityInfo" style="display:none;">
+                <h3>Major City Info</h3>
+                <p id="mcName" style="font-weight:bold;margin:0"></p>
+                <p>Population: <span id="mcPopulation"></span></p>
+                <p>Area (sq km): <span id="mcArea"></span></p>
+                <p>Happiness: <span id="mcHappiness"></span></p>
+                <p>Budget: $<span id="mcBudget"></span>M</p>
+                <button onclick="document.getElementById('majorCityInfo').style.display='none'">Close</button>
             </div>
         </div>
         <div class="main">
@@ -75,7 +107,7 @@
     <div id="prank-screen" aria-hidden="true" style="display:none;">
         <div class="prank-content">
             <img id="prank-image" src="images.jpeg" alt="prank image">
-            <h1 id="prank-text">fucking idiot</h1>
+            <h1 id="prank-text">you fool</h1>
         </div>
     </div>
 
