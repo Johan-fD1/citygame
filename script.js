@@ -52,6 +52,16 @@ function nextQuestion(q) {
         alert('Please fill in the field.');
         return;
     }
+    
+    // Validate number inputs for stats (questions 4-6)
+    if (q >= 4 && q <= 6) {
+        const value = parseInt(input.value);
+        if (isNaN(value) || value < 1 || value > 10) {
+            alert('Please enter a number between 1 and 10.');
+            return;
+        }
+    }
+    
     cityData[mapping[q]] = input.value;
     document.getElementById('question' + q).style.display = 'none';
     if (q < mapping.length - 1) {
@@ -65,6 +75,14 @@ function generateCity() {
         alert('Please fill in the field.');
         return;
     }
+    
+    // Validate utilities is between 1 and 10
+    const value = parseInt(input.value);
+    if (isNaN(value) || value < 1 || value > 10) {
+        alert('Please enter a number between 1 and 10.');
+        return;
+    }
+    
     cityData.utilities = input.value;
     document.getElementById('question7').style.display = 'none';
     document.getElementById('questions').style.display = 'none';
