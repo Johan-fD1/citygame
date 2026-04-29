@@ -87,6 +87,13 @@
                 <h3>Historical Events</h3>
                 <pre id="eventDesc" style="white-space:pre-wrap"></pre>
             </div>
+            <div id="specialPrompt" style="display:none; margin-top: 12px; padding: 12px; border: 1px solid #ccc; background: #fafafa;">
+                <h3 id="specialTitle">Special Scenario</h3>
+                <p id="specialQuestion"></p>
+                <div id="specialOptions"></div>
+                <button id="specialActionButton" onclick="submitSpecialAction()">Submit choice</button>
+            </div>
+            <div id="gameMessage" style="display:none; margin-top: 12px; padding: 12px; border-radius: 6px; font-weight: bold;"></div>
             <div id="majorCityInfo" style="display:none;">
                 <h3>Major City Info</h3>
                 <p id="mcName" style="font-weight:bold;margin:0"></p>

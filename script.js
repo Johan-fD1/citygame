@@ -8,7 +8,12 @@ const EVENTS = [
     { id: 'boom', text: 'An economic boom increases population and investment.' },
     { id: 'crash', text: 'A sudden economic crash causes mass layoffs and unrest.' },
     { id: 'pandemic', text: "A pandemic affects the city's health systems." },
-    { id: 'terror', text: 'A major terrorist incident shocks the city.' }
+    { id: 'terror', text: 'A major terrorist incident shocks the city.' },
+    { id: 'shibuya', text: 'Shibuya Incident: catastrophe kills 100,000 people in your city.' },
+    { id: 'third_impact', text: 'Third Impact: the entire city is annihilated.' },
+    { id: 'viltrumite_war', text: 'Viltrumite War: your city becomes a Viltrumite stronghold and takes over the world.' },
+    { id: 'judgment_day', text: 'Judgment Day begins: the Terminators have arrived.' },
+    { id: 'world_war_z', text: 'World War Z begins: the undead sweep toward your city.' }
 ];
 
 const MAJOR_CITIES = [
@@ -104,7 +109,11 @@ function generateCity() {
         area: parseFloat(area) || 0,
         features: { transportation: t, safety: s, government: g, utilities: u },
         happiness: initialHappiness,
-        budget: initialBudget
+        budget: initialBudget,
+        mode: 'normal',
+        gameOver: false,
+        victory: false,
+        special: null
     };
 
     // Run an automatic first turn (one year) and update stats so the player sees immediate consequences
@@ -139,6 +148,216 @@ function addCityToGlobe(country, cityName, desc) {
 
 function formatDate(d) {
     try { return d.toLocaleDateString(); } catch (e) { return d.toISOString().slice(0,10); }
+}
+
+function setGameOver(message, victory = false) {
+    const controls = document.getElementById('simulationControls');
+    const prompt = document.getElementById('specialPrompt');
+    const banner = document.getElementById('gameMessage');
+    if (controls) controls.style.display = 'none';
+    if (prompt) prompt.style.display = 'none';
+    if (banner) {
+        banner.style.display = 'block';
+        banner.innerText = message;
+        banner.className = victory ? 'victory' : 'defeat';
+    }
+    if (gameState) {
+        gameState.mode = 'ended';
+        gameState.gameOver = true;
+        gameState.victory = victory;
+    }
+}
+
+function setSpecialPrompt(title, question, options) {
+    const panel = document.getElementById('specialPrompt');
+    const titleEl = document.getElementById('specialTitle');
+    const questionEl = document.getElementById('specialQuestion');
+    const optionsEl = document.getElementById('specialOptions');
+    if (!panel || !titleEl || !questionEl || !optionsEl) return;
+    panel.style.display = 'block';
+    titleEl.innerText = title;
+    questionEl.innerText = question;
+    optionsEl.innerHTML = options.map(opt => {
+        return `<label style="display:block;margin-bottom:8px;"><input type="radio" name="specialChoice" value="${opt.value}"> ${opt.label}</label>`;
+    }).join('');
+    const button = document.getElementById('specialActionButton');
+    if (button) button.style.display = 'block';
+}
+
+function clearSpecialPrompt() {
+    const panel = document.getElementById('specialPrompt');
+    const optionsEl = document.getElementById('specialOptions');
+    if (panel) panel.style.display = 'none';
+    if (optionsEl) optionsEl.innerHTML = '';
+}
+
+function getSelectedSpecialChoice() {
+    const inputs = document.querySelectorAll('input[name="specialChoice"]');
+    for (const input of inputs) {
+        if (input.checked) return input.value;
+    }
+    return null;
+}
+
+function submitSpecialAction() {
+    const choice = getSelectedSpecialChoice();
+    if (!choice) {
+        alert('Please choose an option to continue.');
+        return;
+    }
+    resolveSpecialScenario(choice);
+}
+
+function enterSpecialMode(type) {
+    if (!gameState) return;
+    gameState.mode = type;
+    gameState.special = gameState.special || {};
+    if (type === 'terminator') {
+        gameState.special.type = 'terminator';
+        gameState.special.remainingThreat = 5;
+        gameState.special.round = 0;
+        setSpecialPrompt(
+            'Judgment Day',
+            'Half of your population survived the initial Terminator attack. Choose how to strike back before the Terminators wipe out the survivors.',
+            [
+                { value: 'emp', label: 'Deploy EMP strike' },
+                { value: 'fortify', label: 'Fortify survivors in shelters' },
+                { value: 'hack', label: 'Develop a cyberweapon to turn the machines' }
+            ]
+        );
+        document.getElementById('gameMessage').style.display = 'none';
+    } else if (type === 'zombie') {
+        gameState.special.type = 'zombie';
+        gameState.special.remainingThreat = 6;
+        gameState.special.round = 0;
+        setSpecialPrompt(
+            'World War Z',
+            'Your city is a safe haven from zombies. Choose your next step to eradicate the undead threat.',
+            [
+                { value: 'reinforce', label: 'Reinforce defenses and ration supplies' },
+                { value: 'evacuate', label: 'Evacuate key survivors to safer zones' },
+                { value: 'research', label: 'Research a cure and antidote' }
+            ]
+        );
+        document.getElementById('gameMessage').style.display = 'none';
+    }
+}
+
+function resolveSpecialScenario(choice) {
+    if (!gameState || !gameState.special) return;
+    const special = gameState.special;
+
+    let success = false;
+    let message;
+    let casualtyRate = 0;
+    let threatReduction = 0;
+    let baseChance = Math.random();
+    const g = gameState.features.government;
+
+    if (special.type === 'terminator') {
+        if (choice === 'emp') {
+            threatReduction = 2;
+            success = baseChance + g * 0.05 > 0.9;
+            message = 'EMP strike attempts to disable the Terminators.';
+        } else if (choice === 'fortify') {
+            threatReduction = 1;
+            success = baseChance + g * 0.05 > 0.75;
+            casualtyRate = 0.08;
+            message = 'Fortifications help survivors hide from the machines.';
+        } else {
+            threatReduction = 2;
+            success = baseChance + g * 0.05 > 0.8;
+            message = 'The cyberweapon attempts to turn the machines against each other.';
+        }
+        if (success) {
+            special.remainingThreat = Math.max(0, special.remainingThreat - threatReduction);
+            message += ' It worked and pushed back the Terminator attack.';
+        } else {
+            message += ' The Terminators adapted and struck back.';
+            casualtyRate = Math.max(casualtyRate, 0.12);
+        }
+    } else if (special.type === 'zombie') {
+        if (choice === 'reinforce') {
+            threatReduction = 1;
+            success = baseChance + g * 0.05 > 0.8;
+            casualtyRate = 0.06;
+            message = 'Reinforcing defenses keeps the zombies at bay.';
+        } else if (choice === 'evacuate') {
+            threatReduction = 2;
+            success = baseChance + g * 0.05 > 0.85;
+            casualtyRate = 0.04;
+            message = 'Evacuating civilians reduces zombie casualties.';
+        } else {
+            threatReduction = 3;
+            success = baseChance + g * 0.05 > 0.95;
+            casualtyRate = 0.08;
+            message = 'Researching a cure seeks to eliminate the zombie menace.';
+        }
+        if (success) {
+            special.remainingThreat = Math.max(0, special.remainingThreat - threatReduction);
+            message += ' The undead threat weakens.';
+        } else {
+            message += ' The zombies overwhelm your defenses.';
+            casualtyRate = Math.max(casualtyRate, 0.14);
+        }
+    }
+
+    const casualties = Math.min(gameState.population, Math.max(0, Math.round(gameState.population * casualtyRate)));
+    gameState.population = Math.max(0, gameState.population - casualties);
+
+    const banner = document.getElementById('gameMessage');
+    if (banner) {
+        banner.style.display = 'block';
+        banner.className = '';
+        banner.innerText = `${message} ${casualties ? `${casualties.toLocaleString()} people died.` : ''} Remaining population: ${gameState.population.toLocaleString()}.`;
+    }
+
+    if (gameState.population <= 0) {
+        setGameOver('The special scenario ended in total destruction. Game over.', false);
+        return;
+    }
+
+    if (special.remainingThreat <= 0) {
+        if (special.type === 'terminator') {
+            setGameOver('You defeated the Terminators and survived Judgment Day!', true);
+        } else {
+            setGameOver('Your safe haven held and the zombie threat was eradicated!', true);
+        }
+        return;
+    }
+
+    gameState.special.round += 1;
+    if (special.round >= 6 && special.remainingThreat > 0) {
+        setGameOver('The threat proved too strong. Your city falls.', false);
+        return;
+    }
+
+    if (special.type === 'terminator') {
+        setSpecialPrompt(
+            'Judgment Day Continues',
+            `The Terminators are still active. Choose your next move. Remaining threat: ${special.remainingThreat}.`,
+            [
+                { value: 'emp', label: 'Deploy EMP strike' },
+                { value: 'fortify', label: 'Fortify survivors in shelters' },
+                { value: 'hack', label: 'Develop a cyberweapon to turn the machines' }
+            ]
+        );
+    } else {
+        setSpecialPrompt(
+            'Zombie War Continues',
+            `The undead still surround your safe haven. Choose your next move. Remaining threat: ${special.remainingThreat}.`,
+            [
+                { value: 'reinforce', label: 'Reinforce defenses and ration supplies' },
+                { value: 'evacuate', label: 'Evacuate key survivors to safer zones' },
+                { value: 'research', label: 'Research a cure and antidote' }
+            ]
+        );
+    }
+    updateStatsUI();
+}
+
+function isSpecialModeActive() {
+    return gameState && (gameState.mode === 'terminator' || gameState.mode === 'zombie');
 }
 
 function updateStatsUI() {
@@ -198,6 +417,10 @@ function showMajorCity(d) {
 
 function runSimulation() {
     if (!gameState) return alert('Start a city first.');
+    if (gameState.gameOver) return alert('The game has ended. Refresh to start over.');
+    if (isSpecialModeActive()) {
+        return alert('A special scenario is active. Please use the choices shown to resolve it.');
+    }
     const actions = [];
     ['act_infra','act_police','act_taxes','act_hospitals','act_conserve','act_nothing'].forEach(id => {
         const el = document.getElementById(id);
@@ -224,6 +447,8 @@ function runSimulation() {
                                `Budget change: ${result.budgetDelta >= 0 ? '+' : ''}${result.budgetDelta.toFixed(1)}M → ${gameState.budget.toFixed(1)}M\n\n`;
         }
         updateStatsUI();
+        if (gameState.gameOver) break;
+        if (isSpecialModeActive()) break;
     }
 }
 
@@ -249,6 +474,16 @@ function simulateStep(actions) {
             w = (10 - u) + (10 - s) / 2 + 1;
         } else if (e.id === 'terror') {
             w = (10 - s) + (10 - g) / 2 + 1;
+        } else if (e.id === 'shibuya') {
+            w = 0.15 + (10 - g) / 20 + (10 - u) / 40;
+        } else if (e.id === 'third_impact') {
+            w = 0.08 + (10 - u) / 50;
+        } else if (e.id === 'viltrumite_war') {
+            w = 0.06 + (t + g) / 40;
+        } else if (e.id === 'judgment_day') {
+            w = 0.07 + (10 - s) / 20 + (10 - g) / 30;
+        } else if (e.id === 'world_war_z') {
+            w = 0.06 + (10 - u) / 30 + (10 - g) / 40;
         }
         return Math.max(w, 0.1);
     });
@@ -282,6 +517,7 @@ function simulateStep(actions) {
     // compute effects
     let popChangePct = 0;
     let areaChangePct = 0;
+    let forcePopulation = null;
 
     if (ev.id === 'war') {
         popChangePct = - (0.10 + Math.random() * 0.20) * (1 + (10 - g)/20);
@@ -301,6 +537,37 @@ function simulateStep(actions) {
     } else if (ev.id === 'terror') {
         popChangePct = - (0.005 + Math.random() * 0.02) * (1 + (10 - s)/20);
         areaChangePct = - (Math.random() * 0.005);
+    } else if (ev.id === 'shibuya') {
+        if (gameState.population < 100000) {
+            forcePopulation = 0;
+            areaChangePct = 0;
+            setGameOver('The Shibuya Incident killed everyone in your city. Game over.', false);
+        } else {
+            popChangePct = -100000 / gameState.population;
+            areaChangePct = 0;
+        }
+    } else if (ev.id === 'third_impact') {
+        forcePopulation = 0;
+        areaChangePct = 0;
+        setGameOver('Third Impact destroys everyone in your city. Game over.', false);
+    } else if (ev.id === 'viltrumite_war') {
+        forcePopulation = gameState.population;
+        areaChangePct = 0;
+        setGameOver('Viltrumite War transforms your population into Viltrumites and you take over the world. You win!', true);
+    } else if (ev.id === 'judgment_day') {
+        popChangePct = -0.5;
+        areaChangePct = 0;
+        enterSpecialMode('terminator');
+    } else if (ev.id === 'world_war_z') {
+        if (gameState.features.government > 7) {
+            popChangePct = -0.15;
+            areaChangePct = 0;
+            enterSpecialMode('zombie');
+        } else {
+            popChangePct = -1;
+            areaChangePct = 0;
+            setGameOver('World War Z overran your city and killed everyone. Game over.', false);
+        }
     }
 
     // action-specific modifiers to effects
@@ -366,7 +633,11 @@ function simulateStep(actions) {
     });
 
     // apply updates
-    gameState.population = Math.max(1, Math.round(gameState.population * (1 + popChangePct)));
+    if (forcePopulation !== null) {
+        gameState.population = Math.max(0, forcePopulation);
+    } else {
+        gameState.population = Math.max(1, Math.round(gameState.population * (1 + popChangePct)));
+    }
     gameState.area = Math.max(0.01, gameState.area * (1 + areaChangePct));
     gameState.happiness = Math.max(0, Math.min(100, Math.round(oldHappiness + happinessDelta)));
     gameState.budget = Math.max(0.1, Math.round((oldBudget + budgetDelta) * 10) / 10);

@@ -116,3 +116,22 @@ h2, h3 {
     text-shadow: 0 2px 6px rgba(0,0,0,0.6);
     pointer-events: none;
 }
+#specialPrompt {
+    border-color: #999;
+}
+#specialPrompt button {
+    margin-top: 10px;
+}
+#gameMessage {
+    display: none;
+}
+#gameMessage.victory {
+    background: #d3f8d3;
+    border: 1px solid #4caf50;
+    color: #1b5e20;
+}
+#gameMessage.defeat {
+    background: #f8d3d3;
+    border: 1px solid #d32f2f;
+    color: #7f0000;
+}
