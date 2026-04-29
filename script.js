@@ -1,6 +1,9 @@
 let cityData = {};
 let currentQuestion = 0;
 let gameState = null;
+const EARTH_POPULATION = 8000000000; // approximate starting world population
+// Visual day/night step applied per simulated year (radians)
+const DAY_TIME_STEP_PER_YEAR = Math.PI * 0.5;
 
 const EVENTS = [
     { id: 'war', text: 'A war breaks out near your city.' },
@@ -14,7 +17,17 @@ const EVENTS = [
     { id: 'viltrumite_war', text: 'Viltrumite War: your city becomes a Viltrumite stronghold and takes over the world.' },
     { id: 'judgment_day', text: 'Judgment Day begins: the Terminators have arrived.' },
     { id: 'world_war_z', text: 'World War Z begins: the undead sweep toward your city.' }
+    , { id: 'eclipse', text: 'The Eclipse: darkness falls; demons prowl and most of Earth perishes.' }
 ];
+
+// Map event -> hero who intervenes (provides bonuses in special scenarios or a heroic message)
+const HEROES = {
+    eclipse: 'Doomguy',
+    judgment_day: 'Optimus Prime',
+    world_war_z: 'Leon Kennedy',
+    third_impact: 'Jack Cooper',
+    shibuya: 'Samurai Jack'
+};
 
 const MAJOR_CITIES = [
     { id: 'NYC', text: 'New York', lat: 40.7128, lng: -74.0060, population: 8419600, area: 783.8, happiness: 72, budget: 50000 },
@@ -28,6 +41,9 @@ const MAJOR_CITIES = [
     { id: 'TOR', text: 'Toronto', lat: 43.6532, lng: -79.3832, population: 2731571, area: 630.2, happiness: 76, budget: 12000 },
     { id: 'BER', text: 'Berlin', lat: 52.52, lng: 13.4050, population: 3645000, area: 891.8, happiness: 74, budget: 11000 }
 ];
+
+// Will hold fetched country GeoJSON features
+let COUNTRY_FEATURES = [];
 
 function nextQuestion(q) {
     const mapping = ['cityname', 'country', 'population', 'area', 'transportation', 'safety', 'government', 'utilities'];
@@ -91,7 +107,9 @@ function generateCity() {
     document.getElementById('cityDesc').innerText = desc;
 
     // Add city to globe if possible
-    addCityToGlobe(country, cityName, desc);
+    // try to place label at country centroid first, fall back to simple coords mapping
+    const placed = addCityByCountryFeature(country, cityName, desc);
+    if (!placed) addCityToGlobe(country, cityName, desc);
 
     // Initialize game state starting on 2026-01-01
     const t = parseInt(cityData.transportation) || 5;
@@ -115,6 +133,10 @@ function generateCity() {
         victory: false,
         special: null
     };
+    // initialize global population tracker
+    gameState.globalPopulation = EARTH_POPULATION;
+    // initialize day/night phase (radians 0..2PI)
+    gameState.dayTime = 0;
 
     // Run an automatic first turn (one year) and update stats so the player sees immediate consequences
     doFirstTurn();
@@ -144,6 +166,38 @@ function addCityToGlobe(country, cityName, desc) {
         // also center camera a bit toward marker
         globe.pointOfView({ lat, lng, altitude: 2 }, 1000);
     }
+}
+
+// helper to add label by centroid of country feature if available
+function addCityByCountryFeature(countryName, cityName, desc) {
+    if (!COUNTRY_FEATURES || COUNTRY_FEATURES.length === 0) return false;
+    const match = COUNTRY_FEATURES.find(f => {
+        const n = (f.properties && (f.properties.name || f.properties.ADMIN || f.properties.admin)) || '';
+        return n && n.toLowerCase() === (countryName || '').toLowerCase();
+    });
+    if (!match) return false;
+    // compute simple centroid (average of coordinates)
+    const coords = [];
+    function collect(coordArray) {
+        if (!coordArray) return;
+        if (typeof coordArray[0] === 'number') {
+            // [lng, lat]
+            coords.push(coordArray);
+            return;
+        }
+        coordArray.forEach(c => collect(c));
+    }
+    collect(match.geometry.coordinates);
+    if (coords.length === 0) return false;
+    let sumLat = 0, sumLng = 0;
+    coords.forEach(c => { sumLng += c[0]; sumLat += c[1]; });
+    const lng = sumLng / coords.length;
+    const lat = sumLat / coords.length;
+    const label = { lat, lng, text: cityName, desc };
+    const existing = globe.labelsData() || [];
+    globe.labelsData(existing.concat([label]));
+    globe.pointOfView({ lat, lng, altitude: 2 }, 1000);
+    return true;
 }
 
 function formatDate(d) {
@@ -208,17 +262,19 @@ function submitSpecialAction() {
     resolveSpecialScenario(choice);
 }
 
-function enterSpecialMode(type) {
+function enterSpecialMode(type, sourceEvent) {
     if (!gameState) return;
     gameState.mode = type;
     gameState.special = gameState.special || {};
+    if (sourceEvent) gameState.special.sourceEvent = sourceEvent;
     if (type === 'terminator') {
         gameState.special.type = 'terminator';
         gameState.special.remainingThreat = 5;
         gameState.special.round = 0;
+        const hero = gameState.special.sourceEvent ? HEROES[gameState.special.sourceEvent] : null;
         setSpecialPrompt(
             'Judgment Day',
-            'Half of your population survived the initial Terminator attack. Choose how to strike back before the Terminators wipe out the survivors.',
+            `Half of your population survived the initial Terminator attack. ${hero ? hero + ' has arrived to assist. ' : ''}Choose how to strike back before the Terminators wipe out the survivors.`,
             [
                 { value: 'emp', label: 'Deploy EMP strike' },
                 { value: 'fortify', label: 'Fortify survivors in shelters' },
@@ -230,13 +286,32 @@ function enterSpecialMode(type) {
         gameState.special.type = 'zombie';
         gameState.special.remainingThreat = 6;
         gameState.special.round = 0;
+        const heroZ = gameState.special.sourceEvent ? HEROES[gameState.special.sourceEvent] : null;
         setSpecialPrompt(
             'World War Z',
-            'Your city is a safe haven from zombies. Choose your next step to eradicate the undead threat.',
+            `${heroZ ? heroZ + ' lends his combat expertise. ' : ''}Your city is a safe haven from zombies. Choose your next step to eradicate the undead threat.`,
             [
                 { value: 'reinforce', label: 'Reinforce defenses and ration supplies' },
                 { value: 'evacuate', label: 'Evacuate key survivors to safer zones' },
                 { value: 'research', label: 'Research a cure and antidote' }
+            ]
+        );
+        document.getElementById('gameMessage').style.display = 'none';
+    }
+
+
+    else if (type === 'jujutsu') {
+        gameState.special.type = 'jujutsu';
+        gameState.special.remainingThreat = 4;
+        gameState.special.round = 0;
+        const heroJ = gameState.special.sourceEvent ? HEROES[gameState.special.sourceEvent] : null;
+        setSpecialPrompt(
+            'Shibuya Incident — Jujutsu War',
+            `${heroJ ? heroJ + ' arrives to fight alongside you. ' : ''}Jujutsu sorcerers are attacking your city after the catastrophe. Choose how to fight and begin rebuilding.`,
+            [
+                { value: 'exorcists', label: 'Recruit exorcists and spiritual defenders' },
+                { value: 'fortify', label: 'Fortify the city and protect survivors' },
+                { value: 'assault', label: 'Launch an organized assault on sorcerer strongholds' }
             ]
         );
         document.getElementById('gameMessage').style.display = 'none';
@@ -253,6 +328,10 @@ function resolveSpecialScenario(choice) {
     let threatReduction = 0;
     let baseChance = Math.random();
     const g = gameState.features.government;
+    // hero bonus if a hero is associated with this special scenario
+    const heroName = gameState.special && gameState.special.sourceEvent ? HEROES[gameState.special.sourceEvent] : null;
+    const heroBonus = heroName ? 0.12 : 0;
+    baseChance += heroBonus;
 
     if (special.type === 'terminator') {
         if (choice === 'emp') {
@@ -300,12 +379,129 @@ function resolveSpecialScenario(choice) {
             message += ' The zombies overwhelm your defenses.';
             casualtyRate = Math.max(casualtyRate, 0.14);
         }
+    } else if (special.type === 'jujutsu') {
+        if (choice === 'exorcists') {
+            threatReduction = 2;
+            success = baseChance + g * 0.05 > 0.8;
+            casualtyRate = 0.05;
+            message = 'Exorcists and spiritual defenders engage the cursed sorcerers.';
+        } else if (choice === 'fortify') {
+            threatReduction = 1;
+            success = baseChance + g * 0.05 > 0.75;
+            casualtyRate = 0.06;
+            message = 'Fortifying the city protects survivors but is not decisive.';
+        } else if (choice === 'assault') {
+            threatReduction = 3;
+            success = baseChance + g * 0.05 > 0.9;
+            casualtyRate = 0.12;
+            message = 'A direct assault targets sorcerer strongholds.';
+        }
+        if (success) {
+            special.remainingThreat = Math.max(0, special.remainingThreat - threatReduction);
+            message += ' Your strategy inflicted heavy losses on the jujutsu society.';
+        } else {
+            message += ' The jujutsu sorcerers countered brutally.';
+            casualtyRate = Math.max(casualtyRate, 0.18);
+        }
+    } else if (special.type === 'post_event') {
+        // handle a simple post-event action; `choice` is used to pick recovery actions
+        message = '';
+        if (choice === 'call_allies') {
+            message = 'Allies answered your call, reducing casualties and bolstering morale.';
+            casualtyRate = 0.02;
+            gameState.happiness = Math.min(100, gameState.happiness + 8);
+            gameState.budget = Math.max(0.1, gameState.budget - 3);
+        } else if (choice === 'ration') {
+            message = 'Rationing preserved vital supplies and protected civilians.';
+            casualtyRate = 0.01;
+            gameState.happiness = Math.max(0, gameState.happiness - 4);
+            gameState.budget = Math.max(0.1, gameState.budget - 1);
+        } else if (choice === 'counteroffensive') {
+            message = 'Counteroffensive pushes back aggressors but costs lives and budget.';
+            casualtyRate = 0.06;
+            gameState.budget = Math.max(0.1, gameState.budget - 5);
+        } else if (choice === 'dialogue') {
+            message = 'Dialogue calmed many protesters and improved civic trust.';
+            casualtyRate = 0.005;
+            gameState.happiness = Math.min(100, gameState.happiness + 6);
+        } else if (choice === 'police') {
+            message = 'Police action restored order with limited casualties.';
+            casualtyRate = 0.02;
+            gameState.happiness = Math.max(0, gameState.happiness - 6);
+            gameState.budget = Math.max(0.1, gameState.budget - 2);
+        } else if (choice === 'ignore') {
+            message = 'The unrest continued; it may escalate.';
+            casualtyRate = 0.03;
+            gameState.happiness = Math.max(0, gameState.happiness - 8);
+        } else if (choice === 'quarantine') {
+            message = 'Quarantine slowed the outbreak but stressed the economy.';
+            casualtyRate = 0.02;
+            gameState.budget = Math.max(0.1, gameState.budget - 4);
+        } else if (choice === 'build_hosp') {
+            message = 'New hospitals reduced mortality and improved resilience.';
+            casualtyRate = 0.01;
+            gameState.budget = Math.max(0.1, gameState.budget - 6);
+            gameState.happiness = Math.min(100, gameState.happiness + 4);
+        } else if (choice === 'research') {
+            message = 'Research invests in a long-term cure, but is slow.';
+            casualtyRate = 0.03;
+            gameState.budget = Math.max(0.1, gameState.budget - 8);
+        } else if (choice === 'stimulus') {
+            message = 'Stimulus supports jobs and reduces short-term pain.';
+            casualtyRate = 0.005;
+            gameState.budget = Math.max(0.1, gameState.budget - 6);
+            gameState.happiness = Math.min(100, gameState.happiness + 5);
+        } else if (choice === 'austerity') {
+            message = 'Austerity preserves budget but lowers happiness.';
+            casualtyRate = 0.02;
+            gameState.happiness = Math.max(0, gameState.happiness - 8);
+            gameState.budget = Math.max(0.1, gameState.budget + 3);
+        } else if (choice === 'social_support') {
+            message = 'Social support programs protect the vulnerable.';
+            casualtyRate = 0.01;
+            gameState.budget = Math.max(0.1, gameState.budget - 4);
+            gameState.happiness = Math.min(100, gameState.happiness + 6);
+        } else if (choice === 'intel') {
+            message = 'Intelligence funding thwarts future attacks.';
+            casualtyRate = 0.01;
+            gameState.budget = Math.max(0.1, gameState.budget - 3);
+            gameState.happiness = Math.min(100, gameState.happiness + 2);
+        } else if (choice === 'security') {
+            message = 'Security tightened; some civil liberties are restricted.';
+            casualtyRate = 0.015;
+            gameState.budget = Math.max(0.1, gameState.budget - 2);
+            gameState.happiness = Math.max(0, gameState.happiness - 3);
+        } else if (choice === 'heal') {
+            message = 'Victim support programs help communities recover.';
+            casualtyRate = 0.008;
+            gameState.budget = Math.max(0.1, gameState.budget - 2);
+            gameState.happiness = Math.min(100, gameState.happiness + 4);
+        } else if (choice === 'infrastructure') {
+            message = 'Infrastructure investment locks in long-term gains.';
+            casualtyRate = 0.005;
+            gameState.budget = Math.max(0.1, gameState.budget - 8);
+            gameState.happiness = Math.min(100, gameState.happiness + 8);
+        } else if (choice === 'savings') {
+            message = 'Savings are set aside for future crises.';
+            casualtyRate = 0.01;
+            gameState.budget = Math.max(0.1, gameState.budget + 4);
+        } else if (choice === 'public') {
+            message = 'Public programs raise happiness significantly.';
+            casualtyRate = 0.007;
+            gameState.budget = Math.max(0.1, gameState.budget - 6);
+            gameState.happiness = Math.min(100, gameState.happiness + 10);
+        }
     }
 
     const casualties = Math.min(gameState.population, Math.max(0, Math.round(gameState.population * casualtyRate)));
     gameState.population = Math.max(0, gameState.population - casualties);
 
-    const banner = document.getElementById('gameMessage');
+    // update global population tracker immediately when casualties occur
+    if (typeof gameState.globalPopulation !== 'undefined') {
+        gameState.globalPopulation = Math.max(0, Math.round(gameState.globalPopulation - casualties));
+    }
+
+        const banner = document.getElementById('gameMessage');
     if (banner) {
         banner.style.display = 'block';
         banner.className = '';
@@ -314,6 +510,14 @@ function resolveSpecialScenario(choice) {
 
     if (gameState.population <= 0) {
         setGameOver('The special scenario ended in total destruction. Game over.', false);
+        return;
+    }
+
+    // if this was a simple post-event resolution, clear special and return to normal play
+    if (special.type === 'post_event') {
+        gameState.mode = 'normal';
+        gameState.special = null;
+        updateStatsUI();
         return;
     }
 
@@ -353,11 +557,23 @@ function resolveSpecialScenario(choice) {
             ]
         );
     }
+        // jujutsu continuation prompt
+        if (special.type === 'jujutsu') {
+            setSpecialPrompt(
+                'Jujutsu War Continues',
+                `The jujutsu sorcerers still threaten your city. Choose your next strategy. Remaining threat: ${special.remainingThreat}.`,
+                [
+                    { value: 'exorcists', label: 'Recruit exorcists and spiritual defenders' },
+                    { value: 'fortify', label: 'Fortify the city and protect survivors' },
+                    { value: 'assault', label: 'Launch an organized assault on sorcerer strongholds' }
+                ]
+            );
+        }
     updateStatsUI();
 }
 
 function isSpecialModeActive() {
-    return gameState && (gameState.mode === 'terminator' || gameState.mode === 'zombie');
+    return gameState && (gameState.mode === 'terminator' || gameState.mode === 'zombie' || gameState.mode === 'jujutsu' || gameState.mode === 'post_event');
 }
 
 function updateStatsUI() {
@@ -369,6 +585,8 @@ function updateStatsUI() {
     if (hEl) hEl.innerText = gameState.happiness;
     const bEl = document.getElementById('currentBudget');
     if (bEl) bEl.innerText = Number(gameState.budget).toFixed(1);
+    const gEl = document.getElementById('globalPopulation');
+    if (gEl && typeof gameState.globalPopulation !== 'undefined') gEl.innerText = gameState.globalPopulation.toLocaleString();
 }
 
 function doFirstTurn() {
@@ -380,6 +598,10 @@ function doFirstTurn() {
     const result = simulateStep([]);
     // advance one year
     gameState.currentDate.setFullYear(gameState.currentDate.getFullYear() + 1);
+    // advance day/night phase when simulation time advances
+    if (typeof gameState.dayTime === 'number') {
+        gameState.dayTime = (gameState.dayTime + DAY_TIME_STEP_PER_YEAR) % (2 * Math.PI);
+    }
 
     // show updated stats
     updateStatsUI();
@@ -438,6 +660,10 @@ function runSimulation() {
         const result = simulateStep(actions);
         // advance a year
         gameState.currentDate.setFullYear(gameState.currentDate.getFullYear() + 1);
+        // advance day/night phase for each simulated year
+        if (typeof gameState.dayTime === 'number') {
+            gameState.dayTime = (gameState.dayTime + DAY_TIME_STEP_PER_YEAR) % (2 * Math.PI);
+        }
         // append to log
         if (log) {
             log.textContent += `${formatDate(gameState.currentDate)} — ${result.event.text}\n` +
@@ -475,15 +701,21 @@ function simulateStep(actions) {
         } else if (e.id === 'terror') {
             w = (10 - s) + (10 - g) / 2 + 1;
         } else if (e.id === 'shibuya') {
-            w = 0.15 + (10 - g) / 20 + (10 - u) / 40;
+            // make Shibuya rare
+            w = 0.015 + (10 - g) / 200 + (10 - u) / 400;
         } else if (e.id === 'third_impact') {
-            w = 0.08 + (10 - u) / 50;
+            // extremely rare global annihilation
+            w = 0.005 + (10 - u) / 500;
         } else if (e.id === 'viltrumite_war') {
             w = 0.06 + (t + g) / 40;
         } else if (e.id === 'judgment_day') {
-            w = 0.07 + (10 - s) / 20 + (10 - g) / 30;
+            // rare but possible
+            w = 0.01 + (10 - s) / 200 + (10 - g) / 300;
         } else if (e.id === 'world_war_z') {
-            w = 0.06 + (10 - u) / 30 + (10 - g) / 40;
+            w = 0.01 + (10 - u) / 300 + (10 - g) / 400;
+        } else if (e.id === 'eclipse') {
+            // extremely rare cosmic event
+            w = 0.002 + (10 - u) / 800 + (10 - g) / 1000;
         }
         return Math.max(w, 0.1);
     });
@@ -541,15 +773,27 @@ function simulateStep(actions) {
         if (gameState.population < 100000) {
             forcePopulation = 0;
             areaChangePct = 0;
-            setGameOver('The Shibuya Incident killed everyone in your city. Game over.', false);
+            setGameOver('The Shibuya Incident killed everyone in your city. You lost.', false);
         } else {
             popChangePct = -100000 / gameState.population;
             areaChangePct = 0;
+            // mark that we should enter jujutsu special mode after casualties are applied
+            ev._triggerSpecial = 'jujutsu';
         }
     } else if (ev.id === 'third_impact') {
         forcePopulation = 0;
         areaChangePct = 0;
+        // global annihilation
+        const heroT = HEROES['third_impact'];
+        if (heroT) {
+            const banner = document.getElementById('gameMessage');
+            if (banner) {
+                banner.style.display = 'block';
+                banner.innerText = `${heroT} fought valiantly but could not stop the Third Impact.`;
+            }
+        }
         setGameOver('Third Impact destroys everyone in your city. Game over.', false);
+        if (typeof gameState.globalPopulation !== 'undefined') gameState.globalPopulation = 0;
     } else if (ev.id === 'viltrumite_war') {
         forcePopulation = gameState.population;
         areaChangePct = 0;
@@ -557,17 +801,34 @@ function simulateStep(actions) {
     } else if (ev.id === 'judgment_day') {
         popChangePct = -0.5;
         areaChangePct = 0;
-        enterSpecialMode('terminator');
+        enterSpecialMode('terminator', 'judgment_day');
     } else if (ev.id === 'world_war_z') {
         if (gameState.features.government > 7) {
             popChangePct = -0.15;
             areaChangePct = 0;
-            enterSpecialMode('zombie');
+            enterSpecialMode('zombie', 'world_war_z');
         } else {
             popChangePct = -1;
             areaChangePct = 0;
             setGameOver('World War Z overran your city and killed everyone. Game over.', false);
         }
+    } else if (ev.id === 'eclipse') {
+        // 75% of Earth dies; 25% survive but are marked; game ends in permanent night
+        areaChangePct = 0;
+        // reduce world population immediately
+        if (typeof gameState.globalPopulation !== 'undefined') {
+            const survivors = Math.max(0, Math.round(gameState.globalPopulation * 0.25));
+            gameState.globalPopulation = survivors;
+        }
+        const heroE = HEROES['eclipse'];
+        if (heroE) {
+            const banner = document.getElementById('gameMessage');
+            if (banner) {
+                banner.style.display = 'block';
+                banner.innerText = `${heroE} fought through the demons but could not avert the Eclipse.`;
+            }
+        }
+        setGameOver('The Eclipse wipes out 75% of humanity; the remaining 25% bear the mark of sacrifice. Demons prowl and eternal night falls. Game over.', false);
     }
 
     // action-specific modifiers to effects
@@ -638,6 +899,81 @@ function simulateStep(actions) {
     } else {
         gameState.population = Math.max(1, Math.round(gameState.population * (1 + popChangePct)));
     }
+    // update global population based on city casualties this step
+    try {
+        const casualtiesFromStep = Math.max(0, oldPop - gameState.population);
+        if (typeof gameState.globalPopulation !== 'undefined' && casualtiesFromStep > 0) {
+            gameState.globalPopulation = Math.max(0, Math.round(gameState.globalPopulation - casualtiesFromStep));
+        }
+    } catch (e) { console.warn('global population update failed', e); }
+
+    // If no special mode was triggered and the event did not end the game, offer immediate action choices
+    try {
+        const nonTerminalEvents = ['war','protest','pandemic','crash','terror','boom'];
+        if (!gameState.gameOver && gameState.mode === 'normal' && nonTerminalEvents.includes(ev.id)) {
+            gameState.mode = 'post_event';
+            gameState.special = { type: 'post_event', sourceEvent: ev.id, round: 0 };
+            const hero = HEROES[ev.id];
+            // craft event-specific options
+            let title = 'Event Response';
+            let question = `${ev.text}` + (hero ? ` A hero arrives: ${hero}.` : '');
+            let options = [];
+            if (ev.id === 'war') {
+                title = 'War Response';
+                question += ' Choose how to respond to the conflict.';
+                options = [
+                    { value: 'call_allies', label: 'Call allies and request aid' },
+                    { value: 'ration', label: 'Ration supplies and protect civilians' },
+                    { value: 'counteroffensive', label: 'Launch counteroffensive' }
+                ];
+            } else if (ev.id === 'protest') {
+                title = 'Protest Response';
+                question += ' Choose a strategy to handle the unrest.';
+                options = [
+                    { value: 'dialogue', label: 'Open dialogue and concessions' },
+                    { value: 'police', label: 'Deploy police to restore order' },
+                    { value: 'ignore', label: 'Let it play out (risk escalation)' }
+                ];
+            } else if (ev.id === 'pandemic') {
+                title = 'Pandemic Response';
+                question += ' Choose measures to protect public health.';
+                options = [
+                    { value: 'quarantine', label: 'Impose quarantine and lockdowns' },
+                    { value: 'build_hosp', label: 'Rapidly build hospitals and clinics' },
+                    { value: 'research', label: 'Fund research for treatments' }
+                ];
+            } else if (ev.id === 'crash') {
+                title = 'Economic Response';
+                question += ' Choose an economic response.';
+                options = [
+                    { value: 'stimulus', label: 'Inject stimulus to revive economy' },
+                    { value: 'austerity', label: 'Implement austerity to preserve budget' },
+                    { value: 'social_support', label: 'Increase social support to protect citizens' }
+                ];
+            } else if (ev.id === 'terror') {
+                title = 'Terror Response';
+                question += ' Choose a security response.';
+                options = [
+                    { value: 'intel', label: 'Invest in intelligence and prevention' },
+                    { value: 'security', label: 'Increase security presence' },
+                    { value: 'heal', label: 'Focus on victim support and resilience' }
+                ];
+            } else if (ev.id === 'boom') {
+                title = 'Boom Opportunity';
+                question += ' Choose how to allocate the benefits of the boom.';
+                options = [
+                    { value: 'infrastructure', label: 'Invest in long-term infrastructure' },
+                    { value: 'savings', label: 'Save for future downturns' },
+                    { value: 'public', label: 'Fund public programs and raise happiness' }
+                ];
+            }
+            setSpecialPrompt(title, question, options);
+        }
+    } catch (e) { console.warn('post-event prompt failed', e); }
+    // if event requested a follow-up special mode, trigger it now (after casualties applied)
+    try {
+        if (ev._triggerSpecial) enterSpecialMode(ev._triggerSpecial, ev.id);
+    } catch (e) { console.warn('Failed to enter special mode', e); }
     gameState.area = Math.max(0.01, gameState.area * (1 + areaChangePct));
     gameState.happiness = Math.max(0, Math.min(100, Math.round(oldHappiness + happinessDelta)));
     gameState.budget = Math.max(0.1, Math.round((oldBudget + budgetDelta) * 10) / 10);
@@ -660,6 +996,7 @@ const globe = Globe()
     .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
     .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
     .labelsData([])
+    .polygonsData([])
     .labelLat(d => d.lat)
     .labelLng(d => d.lng)
     .labelText(d => d.text)
@@ -675,6 +1012,25 @@ const globe = Globe()
     .pointColor(() => 'orange')
     .width(window.innerWidth - 300)
     .height(window.innerHeight)(document.getElementById('globe-container'));
+
+// fetch and render country polygons (TopoJSON -> GeoJSON)
+(async function loadCountryPolygons(){
+    try {
+        const res = await fetch('https://unpkg.com/world-atlas@2.0.2/world/110m.json');
+        const world = await res.json();
+        // topojson available as global from topojson-client script
+        const countries = topojson.feature(world, world.objects.countries).features;
+        COUNTRY_FEATURES = countries;
+        globe.polygonsData(countries)
+            .polygonCapColor(() => 'rgba(255,255,255,0.02)')
+            .polygonSideColor(() => 'rgba(0,0,0,0)')
+            .polygonStrokeColor(() => 'rgba(255,255,255,0.06)')
+            .polygonLabel(f => f.properties && (f.properties.name || f.properties.ADMIN || f.properties.admin) || '')
+            .polygonAltitude(0.005 + Math.random() * 0.005);
+    } catch (e) {
+        console.warn('Failed to load country polygons', e);
+    }
+})();
 
 // make labels clickable to show description
 globe.onLabelClick(d => {
@@ -699,14 +1055,21 @@ scene.add(dirLight);
 const ambient = new THREE.AmbientLight(0x666666);
 scene.add(ambient);
 
-let dayTime = 0; // 0..2PI
+let _dayTimeLocal = 0; // fallback if gameState not initialized
 function animateDayNight() {
-    dayTime += 0.0025; // speed of cycle
-    const x = Math.cos(dayTime) * 100;
-    const y = Math.sin(dayTime) * 100;
+    let dt;
+    if (typeof gameState !== 'undefined' && gameState && typeof gameState.dayTime === 'number') {
+        gameState.dayTime += 0.0025; // small smooth progression between simulation steps
+        dt = gameState.dayTime % (2 * Math.PI);
+    } else {
+        _dayTimeLocal += 0.0025;
+        dt = _dayTimeLocal % (2 * Math.PI);
+    }
+    const x = Math.cos(dt) * 100;
+    const y = Math.sin(dt) * 100;
     dirLight.position.set(x, y, 50);
     // also slightly change intensity to simulate day/night
-    dirLight.intensity = 0.5 + 0.5 * Math.max(0, Math.sin(dayTime));
+    dirLight.intensity = 0.5 + 0.5 * Math.max(0, Math.sin(dt));
     requestAnimationFrame(animateDayNight);
 }
 animateDayNight();
