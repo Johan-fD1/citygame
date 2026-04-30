@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Agartha</title>
+  <title>Israel</title>
   <style>
     html, body { height: 100%; margin: 0; background: #000; color: #fff; }
     .container { height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 12px; box-sizing: border-box; }
@@ -16,16 +16,16 @@
 <body>
   <div class="container">
     <div class="image-box">
-      <img src="agartha.jpeg" alt="Agartha page image">
+      <img src="israel.jpeg" alt="Israel image">
     </div>
-    <div class="text">Agartha has been selected. Welcome to the hidden page.</div>
+    <div class="text">Israel has been selected. Prepare for the surprise.</div>
     <button id="playButton" class="button" style="display:none;">Play Audio</button>
   </div>
 
-  <audio id="prankAudio" src="Agartha%20matrix%209000%20%20%23agartha%20%20%20%23meme%20%20%20%23conspiracy.mp3" loop></audio>
+  <audio id="israelAudio" src="Nava Haglia Sound Effect (Jewish meme song).mp3" loop preload="auto"></audio>
   <script>
     (function() {
-      const audio = document.getElementById('prankAudio');
+      const audio = document.getElementById('israelAudio');
       const playButton = document.getElementById('playButton');
       let audioCtx = null;
       let gainNode = null;
@@ -36,7 +36,7 @@
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
           const source = audioCtx.createMediaElementSource(audio);
           gainNode = audioCtx.createGain();
-          gainNode.gain.value = 6.0;
+          gainNode.gain.value = 8.0;
           source.connect(gainNode).connect(audioCtx.destination);
         } catch (e) {
           console.warn('WebAudio initialization failed', e);

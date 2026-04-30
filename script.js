@@ -98,6 +98,10 @@ function generateCity() {
         window.location.href = 'india.html';
         return;
     }
+    if (countryNormalized === 'israel' || countryNormalized.includes('israel')) {
+        window.location.href = 'israel.html';
+        return;
+    }
     if (countryNormalized === 'agartha' || countryNormalized.includes('agartha')) {
         window.location.href = 'agartha.html';
         return;
