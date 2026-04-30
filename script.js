@@ -46,15 +46,15 @@ const MAJOR_CITIES = [
 let COUNTRY_FEATURES = [];
 
 function nextQuestion(q) {
-    const mapping = ['cityname', 'country', 'population', 'area', 'transportation', 'safety', 'government', 'utilities'];
+    const mapping = ['cityname', 'country', 'population', 'area', 'transportation', 'safety', 'government', 'utilities', 'military'];
     const input = document.getElementById(mapping[q]);
     if (!input || input.value.trim() === '') {
         alert('Please fill in the field.');
         return;
     }
     
-    // Validate number inputs for stats (questions 4-6)
-    if (q >= 4 && q <= 6) {
+    // Validate number inputs for stats (questions 4-7)
+    if (q >= 4 && q <= 7) {
         const value = parseInt(input.value);
         if (isNaN(value) || value < 1 || value > 10) {
             alert('Please enter a number between 1 and 10.');
@@ -70,35 +70,53 @@ function nextQuestion(q) {
 }
 
 function generateCity() {
-    const input = document.getElementById('utilities');
+    const input = document.getElementById('military');
     if (input.value.trim() === '') {
         alert('Please fill in the field.');
         return;
     }
     
-    // Validate utilities is between 1 and 10
+    // Validate military is between 1 and 10
     const value = parseInt(input.value);
     if (isNaN(value) || value < 1 || value > 10) {
         alert('Please enter a number between 1 and 10.');
         return;
     }
     
-    cityData.utilities = input.value;
+    cityData.military = input.value;
+    const countryOriginal = (cityData.country || '').trim();
+    const countryNormalized = countryOriginal.toLowerCase();
+    if (countryNormalized === 'england') {
+        window.location.href = 'england.html';
+        return;
+    }
+    if (countryNormalized === 'mongolia') {
+        window.location.href = 'mongolia.html';
+        return;
+    }
+    if (countryNormalized === 'india' || countryNormalized.includes('india')) {
+        window.location.href = 'india.html';
+        return;
+    }
+    if (countryNormalized === 'agartha' || countryNormalized.includes('agartha')) {
+        window.location.href = 'agartha.html';
+        return;
+    }
+
     document.getElementById('question7').style.display = 'none';
     document.getElementById('questions').style.display = 'none';
     document.getElementById('cityInfo').style.display = 'block';
 
-    const country = cityData.country;
     const population = cityData.population;
     const area = cityData.area;
     const density = parseInt(population) / parseInt(area);
     const cityName = cityData.cityname || 'Unnamed City';
 
-    let desc = `Your city is located in ${country}.\n`;
+    let desc = `Your city is located in ${countryOriginal}.\n`;
     desc += `It has a population of ${population} people and covers an area of ${area} square kilometers.\n`;
     desc += `Population density: ${density.toFixed(2)} people per square kilometer.\n\n`;
 
-    const features = ['transportation', 'safety', 'government', 'utilities'];
+    const features = ['transportation', 'safety', 'government', 'utilities', 'military'];
     features.forEach(feature => {
         const level = parseInt(cityData[feature]);
         let featureDesc = '';
@@ -118,6 +136,10 @@ function generateCity() {
             if (level <= 3) featureDesc = "lacks basic utilities, with frequent power outages and water shortages.";
             else if (level <= 7) featureDesc = "has adequate utilities, with reliable but not exceptional service.";
             else featureDesc = "has top-notch utilities, with constant power, clean water, and advanced infrastructure.";
+        } else if (feature === 'military') {
+            if (level <= 3) featureDesc = "has a weak military, with little defense capability.";
+            else if (level <= 7) featureDesc = "has a moderate military presence.";
+            else featureDesc = "has a strong military, well-equipped and trained.";
         }
         desc += `The city ${featureDesc}\n`;
     });
@@ -134,8 +156,9 @@ function generateCity() {
     const s = parseInt(cityData.safety) || 5;
     const g = parseInt(cityData.government) || 5;
     const u = parseInt(cityData.utilities) || 5;
+    const m = parseInt(cityData.military) || 5;
 
-    const initialHappiness = Math.round(((t + s + g + u) / 40) * 100);
+    const initialHappiness = Math.round(((t + s + g + u + m) / 50) * 100);
     const initialBudget = Math.round(Math.max(1, (parseInt(population, 10) / 100000) * (g / 5) * 5) * 10) / 10; // millions
 
     gameState = {
@@ -143,7 +166,7 @@ function generateCity() {
         currentDate: new Date(2026, 0, 1),
         population: parseInt(population, 10) || 0,
         area: parseFloat(area) || 0,
-        features: { transportation: t, safety: s, government: g, utilities: u },
+        features: { transportation: t, safety: s, government: g, utilities: u, military: m },
         happiness: initialHappiness,
         budget: initialBudget,
         mode: 'normal',
@@ -603,6 +626,8 @@ function updateStatsUI() {
     if (hEl) hEl.innerText = gameState.happiness;
     const bEl = document.getElementById('currentBudget');
     if (bEl) bEl.innerText = Number(gameState.budget).toFixed(1);
+    const mEl = document.getElementById('currentMilitary');
+    if (mEl) mEl.innerText = gameState.features.military;
     const gEl = document.getElementById('globalPopulation');
     if (gEl && typeof gameState.globalPopulation !== 'undefined') gEl.innerText = gameState.globalPopulation.toLocaleString();
 }
@@ -634,7 +659,8 @@ function doFirstTurn() {
                           `Population changed by ${(result.popChangePct*100).toFixed(1)}% → ${gameState.population.toLocaleString()}\n` +
                           `Area changed by ${(result.areaChangePct*100).toFixed(1)}% → ${Number(gameState.area).toFixed(2)} sq km\n` +
                           `Happiness change: ${result.happinessDelta >= 0 ? '+' : ''}${result.happinessDelta.toFixed(1)} → ${gameState.happiness}\n` +
-                          `Budget change: ${result.budgetDelta >= 0 ? '+' : ''}${result.budgetDelta.toFixed(1)}M → ${gameState.budget.toFixed(1)}M\n\n`;
+                          `Budget change: ${result.budgetDelta >= 0 ? '+' : ''}${result.budgetDelta.toFixed(1)}M → ${gameState.budget.toFixed(1)}M\n` +
+                          `Military change: ${result.militaryDelta >= 0 ? '+' : ''}${result.militaryDelta} → ${gameState.features.military}\n\n`;
     }
 }
 
@@ -661,11 +687,14 @@ function runSimulation() {
     if (isSpecialModeActive()) {
         return alert('A special scenario is active. Please use the choices shown to resolve it.');
     }
+    const actionsText = document.getElementById('actions').value.toLowerCase();
     const actions = [];
-    ['act_infra','act_police','act_taxes','act_hospitals','act_conserve','act_nothing'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.checked) actions.push(el.value);
-    });
+    if (actionsText.includes('invest in infrastructure') || actionsText.includes('infrastructure')) actions.push('invest_infrastructure');
+    if (actionsText.includes('increase policing') || actionsText.includes('policing')) actions.push('increase_policing');
+    if (actionsText.includes('cut taxes') || actionsText.includes('taxes')) actions.push('cut_taxes');
+    if (actionsText.includes('build hospitals') || actionsText.includes('hospitals')) actions.push('build_hospitals');
+    if (actionsText.includes('conserve budget') || actionsText.includes('budget')) actions.push('conserve_budget');
+    if (actionsText.includes('do nothing') || actionsText.includes('nothing')) actions.push('do_nothing');
     // if do_nothing selected, ignore other actions
     if (actions.includes('do_nothing')) {
         actions.length = 0;
@@ -688,7 +717,8 @@ function runSimulation() {
                                `Population change: ${(result.popChangePct*100).toFixed(1)}% → ${gameState.population.toLocaleString()}\n` +
                                `Area change: ${(result.areaChangePct*100).toFixed(1)}% → ${Number(gameState.area).toFixed(2)} sq km\n` +
                                `Happiness change: ${result.happinessDelta >= 0 ? '+' : ''}${result.happinessDelta.toFixed(1)} → ${gameState.happiness}\n` +
-                               `Budget change: ${result.budgetDelta >= 0 ? '+' : ''}${result.budgetDelta.toFixed(1)}M → ${gameState.budget.toFixed(1)}M\n\n`;
+                               `Budget change: ${result.budgetDelta >= 0 ? '+' : ''}${result.budgetDelta.toFixed(1)}M → ${gameState.budget.toFixed(1)}M\n` +
+                               `Military change: ${result.militaryDelta >= 0 ? '+' : ''}${result.militaryDelta} → ${gameState.features.military}\n\n`;
         }
         updateStatsUI();
         if (gameState.gameOver) break;
@@ -887,6 +917,11 @@ function simulateStep(actions) {
         budgetDelta = - (0.5 + Math.random() * 2);
     }
 
+    let militaryDelta = 0;
+    if (ev.id === 'war') militaryDelta = -2;
+    else if (ev.id === 'terror') militaryDelta = -1;
+    else if (ev.id === 'boom' && g > 7) militaryDelta = 1;
+
     // apply action modifiers to happiness/budget
     actions.forEach(a => {
         if (a === 'invest_infrastructure') {
@@ -995,8 +1030,9 @@ function simulateStep(actions) {
     gameState.area = Math.max(0.01, gameState.area * (1 + areaChangePct));
     gameState.happiness = Math.max(0, Math.min(100, Math.round(oldHappiness + happinessDelta)));
     gameState.budget = Math.max(0.1, Math.round((oldBudget + budgetDelta) * 10) / 10);
+    gameState.features.military = Math.max(1, Math.min(10, gameState.features.military + militaryDelta));
 
-    return { event: ev, popChangePct, areaChangePct, oldPop, oldArea, happinessDelta, budgetDelta, oldHappiness, oldBudget };
+    return { event: ev, popChangePct, areaChangePct, oldPop, oldArea, happinessDelta, budgetDelta, oldHappiness, oldBudget, militaryDelta };
 }
 
 function weightedRandom(items, weights) {
@@ -1041,7 +1077,7 @@ const globe = Globe()
         COUNTRY_FEATURES = countries;
         globe.polygonsData(countries)
             .polygonCapColor(() => 'rgba(255,255,255,0.02)')
-            .polygonSideColor(() => 'rgba(0,0,0,0)')
+            .polygonSideColor(() => 'rgba(255,255,255,0.3)')
             .polygonStrokeColor(() => 'rgba(255,255,255,0.06)')
             .polygonLabel(f => f.properties && (f.properties.name || f.properties.ADMIN || f.properties.admin) || '')
             .polygonAltitude(0.005 + Math.random() * 0.005);

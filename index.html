@@ -53,6 +53,11 @@
                 <div id="question7" style="display:none;">
                     <label for="utilities">On a scale of 1-10, how much utilities does your city have?</label>
                     <input type="number" id="utilities" min="1" max="10" required>
+                    <button onclick="nextQuestion(7)">Next</button>
+                </div>
+                <div id="question8" style="display:none;">
+                    <label for="military">On a scale of 1-10, how much military power does your city have?</label>
+                    <input type="number" id="military" min="1" max="10" required>
                     <button onclick="generateCity()">Generate City</button>
                 </div>
             </div>
@@ -68,20 +73,11 @@
                 <p>Area (sq km): <span id="currentArea"></span></p>
                 <p>Happiness: <span id="currentHappiness"></span></p>
                 <p>Budget: $<span id="currentBudget"></span>M</p>
+                <p>Military: <span id="currentMilitary"></span></p>
                 <p>World Population: <span id="globalPopulation"></span></p>
 
-                <label>Select actions (you can pick multiple):</label>
-                <div>
-                    <label><input type="checkbox" id="act_infra" value="invest_infrastructure"> Invest in infrastructure</label><br>
-                    <label><input type="checkbox" id="act_police" value="increase_policing"> Increase policing</label><br>
-                    <label><input type="checkbox" id="act_taxes" value="cut_taxes"> Cut taxes</label><br>
-                    <label><input type="checkbox" id="act_hospitals" value="build_hospitals"> Build hospitals</label><br>
-                    <label><input type="checkbox" id="act_conserve" value="conserve_budget"> Conserve budget</label><br>
-                    <label><input type="checkbox" id="act_nothing" value="do_nothing"> Do nothing</label><br>
-                </div>
-
-                <label for="simYears">Simulate years:</label>
-                <input type="number" id="simYears" min="1" value="1">
+                <label for="actions">Describe your actions for the city:</label>
+                <textarea id="actions" rows="5" placeholder="e.g., invest in infrastructure, increase policing, cut taxes, build hospitals, conserve budget, do nothing"></textarea>
                 <button onclick="runSimulation()">Run Simulation</button>
             </div>
 
