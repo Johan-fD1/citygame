@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/three@0.150.0/build/three.min.js"></script>
     <script src="https://unpkg.com/globe.gl@2.27.0/dist/globe.gl.min.js"></script>
+    <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -52,17 +53,55 @@
                 <div id="question7" style="display:none;">
                     <label for="utilities">On a scale of 1-10, how much utilities does your city have?</label>
                     <input type="number" id="utilities" min="1" max="10" required>
+                    <button onclick="nextQuestion(7)">Next</button>
+                </div>
+                <div id="question8" style="display:none;">
+                    <label for="military">On a scale of 1-10, how much military power does your city have?</label>
+                    <input type="number" id="military" min="1" max="10" required>
                     <button onclick="generateCity()">Generate City</button>
                 </div>
             </div>
             <div id="cityInfo" style="display:none;">
                 <h3>Your City</h3>
                 <p id="cityDesc"></p>
-                <button onclick="simulateEvents()">Simulate Events</button>
+                <button onclick="showSimulationControls()">Plan Actions & Simulate</button>
             </div>
+            <div id="simulationControls" style="display:none;">
+                <h3>Simulation Controls</h3>
+                <p>Current Date: <span id="currentDate"></span></p>
+                <p>Population: <span id="currentPopulation"></span></p>
+                <p>Area (sq km): <span id="currentArea"></span></p>
+                <p>Happiness: <span id="currentHappiness"></span></p>
+                <p>Budget: $<span id="currentBudget"></span>M</p>
+                <p>Military: <span id="currentMilitary"></span></p>
+                <p>World Population: <span id="globalPopulation"></span></p>
+
+                <label for="actions">Describe your actions for the city:</label>
+                <textarea id="actions" rows="5" placeholder="e.g., invest in infrastructure, increase policing, cut taxes, build hospitals, conserve budget, do nothing"></textarea>
+                <label for="simYears">Number of years to simulate:</label>
+                <input type="number" id="simYears" min="1" max="100" value="1">
+                <button onclick="runSimulation()">Run Simulation</button>
+            </div>
+
             <div id="events" style="display:none;">
                 <h3>Historical Events</h3>
-                <p id="eventDesc"></p>
+                <pre id="eventDesc" style="white-space:pre-wrap"></pre>
+            </div>
+            <div id="specialPrompt" style="display:none; margin-top: 12px; padding: 12px; border: 1px solid #ccc; background: #fafafa; color: black;">
+                <h3 id="specialTitle">Special Scenario</h3>
+                <p id="specialQuestion"></p>
+                <div id="specialOptions"></div>
+                <button id="specialActionButton" onclick="submitSpecialAction()">Submit choice</button>
+            </div>
+            <div id="gameMessage" style="display:none; margin-top: 12px; padding: 12px; border-radius: 6px; font-weight: bold;"></div>
+            <div id="majorCityInfo" style="display:none;">
+                <h3>Major City Info</h3>
+                <p id="mcName" style="font-weight:bold;margin:0"></p>
+                <p>Population: <span id="mcPopulation"></span></p>
+                <p>Area (sq km): <span id="mcArea"></span></p>
+                <p>Happiness: <span id="mcHappiness"></span></p>
+                <p>Budget: $<span id="mcBudget"></span>M</p>
+                <button onclick="document.getElementById('majorCityInfo').style.display='none'">Close</button>
             </div>
         </div>
         <div class="main">
@@ -71,6 +110,24 @@
     </div>
     <script src="script.js"></script>
     <button id="do-not-press" aria-label="do not press">do not press</button>
+ 
+    <div id="prank-screen" aria-hidden="true" style="display:none;">
+        <div class="prank-content">
+            <img id="prank-image" src="images.jpeg" alt="prank image">
+            <h1 id="prank-text">you fool</h1>
+        </div>
+    </div>
+
     <audio id="prank-audio" src="prank.mp3" preload="auto"></audio>
+        <script>
+            (function(){
+                const btn = document.getElementById('do-not-press');
+                if (!btn) return;
+                btn.addEventListener('click', function(e){
+                    // Navigate to the prank page we added
+                    window.location.href = 'prank.html';
+                });
+            })();
+        </script>
 </body>
 </html>

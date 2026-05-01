@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>why did u press it</title>
+  <style>
+    html,body{height:100%;margin:0;background:#000}
+    .container{height:100%;display:flex;align-items:center;justify-content:center;position:relative}
+    img{max-width:90%;max-height:90%;object-fit:contain;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
+    #overlay-text{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#fff;font-size:6vw;text-align:center;text-shadow:0 2px 6px rgba(0,0,0,0.6);pointer-events:none}
+    #play-btn{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 18px;font-size:18px;border-radius:8px;border:none;background:#fff;color:#000;cursor:pointer;display:none}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img id="prank-img" src="images.jpeg" alt="prank image">
+    <div id="overlay-text">You really are an idiot</div>
+    <button id="play-btn">Click to play audio</button>
+  </div>
+  <script>
+    (async function(){
+      const audio = new Audio('prank.mp3');
+      audio.loop = true;
+      audio.crossOrigin = 'anonymous';
+      audio.volume = 1.0;
+
+      let ctx = null, source = null, gain = null;
+      let started = false;
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        source = ctx.createMediaElementSource(audio);
+        gain = ctx.createGain();
+        gain.gain.value = 6.0; // loud
+        source.connect(gain).connect(ctx.destination);
+        await audio.play();
+        started = true;
+      } catch (e) {
+        // autoplay blocked — show play button to start audio (user gesture)
+        console.warn('Autoplay prevented or audio failed, showing play button', e);
+        const btn = document.getElementById('play-btn');
+        btn.style.display = 'block';
+        btn.addEventListener('click', async () => {
+          try { if (ctx && ctx.state === 'suspended') await ctx.resume(); } catch (err) {}
+          try { await audio.play(); started = true; } catch (err) { console.warn('Playback failed', err); }
+          btn.style.display = 'none';
+        });
+      }
+
+      // ensure AudioContext resumes on first user gesture if needed
+      document.addEventListener('click', async function resumeOnce(){
+        try { if (ctx && ctx.state === 'suspended') await ctx.resume(); } catch(e){}
+        if (!started) { try { await audio.play(); started = true; } catch(e){} }
+        document.removeEventListener('click', resumeOnce);
+      });
+    })();
+  </script>
+</body>
+</html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prank</title>
+  <style>
+    html,body{height:100%;margin:0;background:#000;color:#fff}
+    .wrap{height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    img.center{max-width:90vmin;max-height:90vmin;object-fit:contain}
+    .btn{position:fixed;right:12px;top:12px;z-index:9999;padding:10px 14px;font-size:14px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img src="images.jpeg" alt="Prank image" class="center">
+  </div>
+  <audio id="prankAudio" src="prank.mp3" loop></audio>
+  <script>
+    (function(){
+      const audio = document.getElementById('prankAudio');
+      audio.volume = 1.0;
+      let ctx;
+      try {
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = ctx.createMediaElementSource(audio);
+        const gain = ctx.createGain();
+        gain.gain.value = 6.0;
+        source.connect(gain).connect(ctx.destination);
+      } catch(e) {
+        ctx = null;
+        console.warn('WebAudio not available', e);
+      }
+
+      const start = async () => {
+        try {
+          if (ctx && ctx.state === 'suspended') await ctx.resume();
+          await audio.play();
+        } catch (err) {
+          const btn = document.createElement('button');
+          btn.textContent = 'Enable sound';
+          btn.className = 'btn';
+          btn.onclick = async () => {
+            try {
+              if (ctx) await ctx.resume();
+              await audio.play();
+              btn.remove();
+            } catch (e) { console.error(e); }
+          };
+          document.body.appendChild(btn);
+        }
+      };
+
+      start();
+      ['click','keydown','mousemove','touchstart'].forEach(ev=>{
+        window.addEventListener(ev, start, {once:true,passive:true});
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Israel</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #000; color: #fff; }
+    .container { height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 12px; box-sizing: border-box; }
+    .image-box { max-width: 100%; max-height: 80%; display: flex; align-items: center; justify-content: center; }
+    .image-box img { width: auto; max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); }
+    .text { margin-top: 24px; font-size: clamp(1.5rem, 3vw, 3rem); text-align: center; text-shadow: 0 2px 24px rgba(0,0,0,0.75); }
+    .button { margin-top: 18px; padding: 12px 20px; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; background: #fff; color: #000; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="image-box">
+      <img src="israel.jpeg" alt="Israel image">
+    </div>
+    <div class="text">Israel has been selected. Prepare for the surprise.</div>
+    <button id="playButton" class="button" style="display:none;">Play Audio</button>
+  </div>
+
+  <audio id="israelAudio" src="Nava Haglia Sound Effect (Jewish meme song).mp3" loop preload="auto"></audio>
+  <script>
+    (function() {
+      const audio = document.getElementById('israelAudio');
+      const playButton = document.getElementById('playButton');
+      let audioCtx = null;
+      let gainNode = null;
+      let started = false;
+
+      function setupAudio() {
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioCtx.createMediaElementSource(audio);
+          gainNode = audioCtx.createGain();
+          gainNode.gain.value = 8.0;
+          source.connect(gainNode).connect(audioCtx.destination);
+        } catch (e) {
+          console.warn('WebAudio initialization failed', e);
+          audioCtx = null;
+          gainNode = null;
+        }
+      }
+
+      async function playAudio() {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          await audioCtx.resume().catch(() => {});
+        }
+        await audio.play();
+        started = true;
+        playButton.style.display = 'none';
+      }
+
+      setupAudio();
+      playAudio().catch(() => {
+        playButton.style.display = 'block';
+      });
+
+      playButton.addEventListener('click', async () => {
+        try {
+          await playAudio();
+        } catch (e) {
+          console.warn('Play failed', e);
+        }
+      });
+
+      document.addEventListener('click', async function resumeAudio() {
+        if (!started) {
+          try { await playAudio(); } catch (e) {}
+        }
+        document.removeEventListener('click', resumeAudio);
+      });
+    })();
+  </script>
+</body>
+</html>
