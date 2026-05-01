@@ -321,7 +321,7 @@ def main():
     game = CityGame()
     game.ask_questions()
     game.generate_city()
-    game.simulate_events()
+    game.repl()
 
 if __name__ == "__main__":
     main()

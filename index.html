@@ -78,6 +78,8 @@
 
                 <label for="actions">Describe your actions for the city:</label>
                 <textarea id="actions" rows="5" placeholder="e.g., invest in infrastructure, increase policing, cut taxes, build hospitals, conserve budget, do nothing"></textarea>
+                <label for="simYears">Number of years to simulate:</label>
+                <input type="number" id="simYears" min="1" max="100" value="1">
                 <button onclick="runSimulation()">Run Simulation</button>
             </div>
 
@@ -85,7 +87,7 @@
                 <h3>Historical Events</h3>
                 <pre id="eventDesc" style="white-space:pre-wrap"></pre>
             </div>
-            <div id="specialPrompt" style="display:none; margin-top: 12px; padding: 12px; border: 1px solid #ccc; background: #fafafa;">
+            <div id="specialPrompt" style="display:none; margin-top: 12px; padding: 12px; border: 1px solid #ccc; background: #fafafa; color: black;">
                 <h3 id="specialTitle">Special Scenario</h3>
                 <p id="specialQuestion"></p>
                 <div id="specialOptions"></div>

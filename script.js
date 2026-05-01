@@ -728,6 +728,9 @@ function runSimulation() {
         if (gameState.gameOver) break;
         if (isSpecialModeActive()) break;
     }
+    // Clear inputs for next turn
+    document.getElementById('actions').value = '';
+    document.getElementById('simYears').value = '1';
 }
 
 function simulateStep(actions) {
