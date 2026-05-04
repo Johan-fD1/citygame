@@ -685,6 +685,125 @@ function showMajorCity(d) {
     document.getElementById('mcBudget').innerText = d.budget ? Number(d.budget).toFixed(1) : 'N/A';
 }
 
+// AI Decision Maker - automatically decides best action for special events
+function makeAIDecision() {
+    if (!gameState || !gameState.special) return null;
+    
+    const special = gameState.special;
+    const g = gameState.features.government;
+    const s = gameState.features.safety;
+    const u = gameState.features.utilities;
+    const budget = gameState.budget;
+    const happiness = gameState.happiness;
+    const sourceEvent = special.sourceEvent;
+    
+    let choice = null;
+    
+    // For post-event scenarios, decide based on city stats
+    if (special.type === 'post_event') {
+        if (sourceEvent === 'war') {
+            // For war, consider government strength
+            if (g > 7) choice = 'counteroffensive';
+            else if (g > 5) choice = 'call_allies';
+            else choice = 'ration';
+        } else if (sourceEvent === 'protest') {
+            // For protests, consider government and happiness
+            if (g > 7 && happiness < 50) choice = 'police';
+            else if (g > 5) choice = 'dialogue';
+            else choice = 'dialogue';
+        } else if (sourceEvent === 'pandemic') {
+            // For pandemic, consider utilities and budget
+            if (u > 7) choice = 'build_hosp';
+            else if (budget > 8) choice = 'quarantine';
+            else choice = 'research';
+        } else if (sourceEvent === 'crash') {
+            // For economic crash, consider budget and government
+            if (budget > 5) choice = 'stimulus';
+            else if (g > 7) choice = 'social_support';
+            else choice = 'austerity';
+        } else if (sourceEvent === 'terror') {
+            // For terror, consider safety and budget
+            if (s > 6 && budget > 3) choice = 'intel';
+            else if (budget > 2) choice = 'security';
+            else choice = 'heal';
+        } else if (sourceEvent === 'boom') {
+            // For boom, consider government and long-term planning
+            if (g > 6 && budget > 8) choice = 'infrastructure';
+            else if (happiness < 60) choice = 'public';
+            else choice = 'savings';
+        }
+    }
+    // For Terminator scenario - try most effective option when possible
+    else if (special.type === 'terminator') {
+        // EMP and hack are more effective, but risky
+        if (g > 6) choice = 'emp';
+        else if (g > 4) choice = 'hack';
+        else choice = 'fortify';
+    }
+    // For Zombie scenario - evacuation is most effective
+    else if (special.type === 'zombie') {
+        if (g > 7) choice = 'evacuate';
+        else if (g > 4) choice = 'research';
+        else choice = 'reinforce';
+    }
+    // For Jujutsu scenario - recruit specialists when strong government
+    else if (special.type === 'jujutsu') {
+        if (g > 7) choice = 'assault';
+        else if (g > 4) choice = 'exorcists';
+        else choice = 'fortify';
+    }
+    
+    return choice;
+}
+
+// Auto-resolve special scenario and continue simulation
+function autoResolveSpecialAction() {
+    const choice = makeAIDecision();
+    if (!choice) return false;
+    
+    const log = document.getElementById('eventDesc');
+    const choiceText = getChoiceDescription(choice);
+    if (log && choiceText) {
+        log.textContent += `  [AI Decision: ${choiceText}]\n`;
+    }
+    
+    resolveSpecialScenario(choice);
+    return true;
+}
+
+// Get human-readable description of an AI choice
+function getChoiceDescription(choice) {
+    const descriptions = {
+        'call_allies': 'Called allies and requested aid',
+        'ration': 'Rationed supplies and protected civilians',
+        'counteroffensive': 'Launched counteroffensive',
+        'dialogue': 'Opened dialogue and made concessions',
+        'police': 'Deployed police to restore order',
+        'ignore': 'Allowed situation to play out naturally',
+        'quarantine': 'Imposed quarantine and lockdowns',
+        'build_hosp': 'Rapidly built hospitals and clinics',
+        'research': 'Funded research for treatments',
+        'stimulus': 'Injected stimulus to revive economy',
+        'austerity': 'Implemented austerity measures',
+        'social_support': 'Increased social support programs',
+        'intel': 'Invested in intelligence and prevention',
+        'security': 'Increased security presence',
+        'heal': 'Focused on victim support and resilience',
+        'infrastructure': 'Invested in long-term infrastructure',
+        'savings': 'Set aside savings for future crises',
+        'public': 'Funded public programs and raised happiness',
+        'emp': 'Deployed EMP strike against machines',
+        'fortify': 'Fortified survivors in shelters',
+        'hack': 'Developed cyberweapon to turn the machines',
+        'reinforce': 'Reinforced defenses and rationed supplies',
+        'evacuate': 'Evacuated key survivors to safer zones',
+        'research': 'Researched cure and antidote',
+        'exorcists': 'Recruited exorcists and spiritual defenders',
+        'assault': 'Launched assault on sorcerer strongholds'
+    };
+    return descriptions[choice] || choice;
+}
+
 function runSimulation() {
     if (!gameState) return alert('Start a city first.');
     if (gameState.gameOver) return alert('The game has ended. Refresh to start over.');
@@ -707,6 +826,10 @@ function runSimulation() {
     if (isNaN(years) || years < 1) years = 1;
 
     const log = document.getElementById('eventDesc');
+    // Clear the event log for this simulation run
+    if (log) {
+        log.textContent = '';
+    }
     for (let y = 0; y < years; y++) {
         const result = simulateStep(actions);
         // advance a year
@@ -725,8 +848,15 @@ function runSimulation() {
                                `Military change: ${result.militaryDelta >= 0 ? '+' : ''}${result.militaryDelta} → ${gameState.features.military}\n\n`;
         }
         updateStatsUI();
+        
+        // Auto-resolve special scenarios with AI decisions
+        while (isSpecialModeActive() && !gameState.gameOver) {
+            if (!autoResolveSpecialAction()) {
+                break;
+            }
+        }
+        
         if (gameState.gameOver) break;
-        if (isSpecialModeActive()) break;
     }
     // Clear inputs for next turn
     document.getElementById('actions').value = '';
