@@ -15,7 +15,7 @@ def serve(port: int, bind: str = ""):
             httpd.serve_forever()
         except KeyboardInterrupt:
             print('\nShutting down server')
-            httpd.shutdown()
+            httpd.shutdown() 
 
 
 def main():
