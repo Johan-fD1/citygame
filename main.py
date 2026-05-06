@@ -69,7 +69,10 @@ class CityGame:
             'economy': max(1000, round(((int(self.city_data['transportation']) + int(self.city_data['utilities']) + int(self.city_data['government'])) / 30) * population)),
             'happiness': round((int(self.city_data['safety']) + int(self.city_data['utilities'])) * 5),
             'crime': max(0, 10 - int(self.city_data['safety'])),
-            'day': 0
+            'day': 0,
+            'mode': 'normal',
+            'game_over': False,
+            'special_strength': 0
         }
 
         print(f"Your city {self.state['name']} is located in {self.state['country']}.")
@@ -171,7 +174,12 @@ class CityGame:
             {'id': 'boom', 'text': 'Economic boom increases investment and population.', 'effect': lambda s: (s.update({'economy': int(s['economy'] * (1 + 0.08 * random.random())), 'population': int(s['population'] * (1 + 0.002 * random.random())), 'happiness': min(100, s['happiness'] + 1)}))},
             {'id': 'festival', 'text': 'Festival boosts happiness and tourism.', 'effect': lambda s: (s.update({'happiness': min(100, s['happiness'] + 3), 'economy': int(s['economy'] * 1.01)}))},
             {'id': 'infrastructure_failure', 'text': 'Infrastructure failure disrupts transport and commerce.', 'effect': lambda s: (s.update({'transportation': max(1, s['transportation'] - 2), 'economy': int(s['economy'] * 0.96)}))},
-            {'id': 'scandal_financial', 'text': 'Financial scandal shakes markets and firms.', 'effect': lambda s: (s.update({'economy': int(s['economy'] * 0.94), 'happiness': max(0, s['happiness'] - 3)}))}
+            {'id': 'scandal_financial', 'text': 'Financial scandal shakes markets and firms.', 'effect': lambda s: (s.update({'economy': int(s['economy'] * 0.94), 'happiness': max(0, s['happiness'] - 3)}))},
+            {'id': 'shibuya', 'text': 'Shibuya Incident; 100,000 people will die if this occurs.', 'effect': self.apply_shibuya},
+            {'id': 'third_impact', 'text': 'Third Impact; everyone will die.', 'effect': self.apply_third_impact},
+            {'id': 'viltrumite_war', 'text': 'Viltrumite War; everyone becomes Viltrumites and takes over the world.', 'effect': self.apply_viltrumite_war},
+            {'id': 'judgment_day', 'text': 'Judgment Day (Terminator); half the population will die and the rest must fight back.', 'effect': self.apply_judgment_day},
+            {'id': 'world_war_z', 'text': 'World War Z; undead invasion threatens your city.', 'effect': self.apply_world_war_z}
         ]
 
         # weights influenced by state
@@ -194,6 +202,16 @@ class CityGame:
                 w = 0.2 + (10 - self.state['transportation']) / 4
             if ev['id'] == 'scandal_financial':
                 w = 0.2 + (10 - self.state['government']) / 5 + random.random()
+            if ev['id'] == 'shibuya':
+                w = 0.15 + (10 - self.state['government']) / 20 + (10 - self.state['utilities']) / 40
+            if ev['id'] == 'third_impact':
+                w = 0.08 + (10 - self.state['utilities']) / 50
+            if ev['id'] == 'viltrumite_war':
+                w = 0.06 + (self.state['transportation'] + self.state['government']) / 40
+            if ev['id'] == 'judgment_day':
+                w = 0.07 + (10 - self.state['safety']) / 20 + (10 - self.state['government']) / 30
+            if ev['id'] == 'world_war_z':
+                w = 0.06 + (10 - self.state['utilities']) / 30 + (10 - self.state['government']) / 40
 
             # actions reduce some risks
             for a in self.actions:
@@ -303,7 +321,7 @@ def main():
     game = CityGame()
     game.ask_questions()
     game.generate_city()
-    game.simulate_events()
+    game.repl()
 
 if __name__ == "__main__":
     main()
